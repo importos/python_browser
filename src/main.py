@@ -8,9 +8,14 @@
 # Copyright:   (c) User 2016
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
-from Tkinter import *
-import urllib,urllib2
-import HTMLParser
+from tkinter import *
+import urllib
+from urllib.request import urlopen
+import urllib.request
+from html.parser import HTMLParser
+import traceback
+import logging
+logging.basicConfig(level=logging.DEBUG)
 call_backs={}
 def binding(event_name,func,*globals_args):
     global call_backs
@@ -22,31 +27,33 @@ def invoke(event_name,*args):
         func(*(globals_args+args))
     pass
 def ent(event):
-    print event.keysym_num
+    logging.debug(event.keysym_num)
     if event.keysym_num==65293:
         #return key pressed
         invoke('change url')
         return 'break'
 def load_url(url):
-    response = urllib2.urlopen(url)
-    u1=response.geturl()
-    headers = response.info()
-    print headers
-    data = response.read()
-##    print data
+    logging.debug(url)
+    try:
+        req = urllib.request.Request(url=url)
+        with urllib.request.urlopen(req) as f:
+            data = f.read().decode('utf-8')
+    except Exception as e:
+        traceback.print_exc()
+        data = ""
     return data
 
-class MyHTMLParser(HTMLParser.HTMLParser):
+class MyHTMLParser(HTMLParser):
     def __init__(self):
-        HTMLParser.HTMLParser.__init__(self)
+        HTMLParser.__init__(self)
         self.objects=[]
         self.parent=[]
         self.current=None
     def handle_starttag(self, tag, attrs):
-##        print "Encountered a start tag:", tag
+##        logging.debug ("Encountered a start tag:", tag)
         t=[]
         for attr in attrs:
-##            print "     attr:", attr
+##            logging.debug( "     attr:", attr)
             t.append(attr)
         nob={
             'name':tag,
@@ -66,7 +73,7 @@ class MyHTMLParser(HTMLParser.HTMLParser):
             self.current=nob
 
     def handle_endtag(self, tag):
-##        print "Encountered an end tag :", tag
+##        logging.debug "Encountered an end tag :", tag
         if self.current['name']==tag:
             if len(self.parent)>0:
                 self.current=self.parent.pop()
@@ -76,17 +83,17 @@ class MyHTMLParser(HTMLParser.HTMLParser):
             #error
             pass
     def handle_data(self, data):
-##        print "Encountered some data  :", data
+##        logging.debug "Encountered some data  :", data
         if self.current:
             self.current['data']=data
     def handle_comment(self,comment):
-##        print "Encountered some comment  :", comment
+##        logging.debug "Encountered some comment  :", comment
         return
     def handle_decl(self,decl):
-##        print "Encountered some decl  :", decl
+##        logging.debug "Encountered some decl  :", decl
         return
     def unknown_decl(self,decl):
-##        print "Encountered some unknown decl  :", decl
+##        logging.debug "Encountered some unknown decl  :", decl
         return
 
     def get_objects(self):
@@ -103,15 +110,20 @@ def object_to_tkinter(root,objects,master):
             f=Frame(master,background='red')
             f.pack(fill=BOTH,expand=YES)
 ##            if itm['data']<>None:
-##                print itm['data']
+##                logging.debug itm['data']
 ##                l=Label(f,text=itm['data'],background='blue')
 ##                l.pack()
             object_to_tkinter(root,itm['childs'],f)
+        elif name=='meta':
+            logging.debug(itm['data'])
+        elif name=='script':
+            logging.debug(itm['data'])
+        
         elif name=='body':
             f=Frame(master,background='red')
             f.pack()
             if itm['data']:
-                print itm['data']
+                logging.debug(itm['data'])
                 l=Label(f,text=itm['data'],background='blue')
                 l.pack()
             object_to_tkinter(root,itm['childs'],f)
@@ -119,7 +131,7 @@ def object_to_tkinter(root,objects,master):
             f=Frame(master,background='orange')
             f.pack()
             if itm['data']:
-                print itm['data']
+                logging.debug(itm['data'])
                 l=Label(f,text=itm['data'],background='blue')
                 l.pack()
             object_to_tkinter(root,itm['childs'],f)
@@ -127,7 +139,7 @@ def object_to_tkinter(root,objects,master):
             f=Frame(master,background='red')
             f.pack()
             if itm['data']:
-                print itm['data']
+                logging.debug(itm['data'])
                 l=Label(f,text=itm['data'],background='blue')
                 l.pack()
             object_to_tkinter(root,itm['childs'],f)
@@ -140,11 +152,11 @@ def object_to_tkinter(root,objects,master):
             l.pack()
             object_to_tkinter(root,itm['childs'],l)
         else:
-            print 'unknown tag',itm['name']
+            logging.debug('unknown tag %s',itm['name'])
             f=Frame(master,background='red')
             f.pack()
             if itm['data']:
-                print itm['data']
+                logging.debug(itm['data'])
                 l=Label(f,text=itm['data'],background='blue')
                 l.pack()
             object_to_tkinter(root,itm['childs'],f)
@@ -156,7 +168,7 @@ def event_change_url(root,url_widget,frame_widget):
     url=url_widget.get(1.0,END)
     url_data=load_url( url)
     url_object=data_to_object(url_data)
-##    print url_object
+##    logging.debug url_object
     for child in frame_widget.winfo_children():
         child.destroy()
     object_to_tkinter(root,url_object,frame_widget)
@@ -174,7 +186,8 @@ def main():
     address.pack( fill=X)
     address.bind('<Key>',ent)
 ##    address.insert(END,"http://localhost/")
-    address.insert(END,"http://dl2.my98music.com/Data/Serial/")
+    # address.insert(END,"https://www.google.com/")
+    address.insert(END,"https://time.ir/")
 
     w=root.winfo_reqwidth()
     canvas = Canvas(root, borderwidth=0, background="#000")
